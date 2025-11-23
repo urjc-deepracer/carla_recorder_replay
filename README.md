@@ -94,3 +94,12 @@ Both examples described above require the **CARLA simulator** to be running in t
 There is also a script called **visualize_dataset.py**, where you can visualize all the dataset at once. Here is an example of the result: 
 
 <img src="images/dataset_visual.png" width="1000px"/>
+
+Usage:
+
+```bash
+python3 visualize_dataset.py --base_path /tmp/1763718805717_dataset
+
+```
+
+
