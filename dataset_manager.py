@@ -39,48 +39,65 @@ class DatasetSaver:
 
         self.rgb_foldername = "rgb"
         self.mask_foldername = "mask"
+        self.semseg_foldername = "semseg"
+        self.custom_foldername = "custom_semseg"
 
         self.rgb_path = os.path.join(self.dataset_path, self.rgb_foldername)
         self.mask_path = os.path.join(self.dataset_path, self.mask_foldername)
+        self.semseg_path = os.path.join(self.dataset_path, self.semseg_foldername)
+        self.custom_path = os.path.join(self.dataset_path, self.custom_foldername)
         self.csv_filename = os.path.join(self.dataset_path, "dataset.csv")
 
         self.counter = 0
 
         os.makedirs(self.rgb_path, exist_ok=True)
         os.makedirs(self.mask_path, exist_ok=True)
+        os.makedirs(self.semseg_path, exist_ok=True)
+        os.makedirs(self.custom_path, exist_ok=True)
 
         print (f"DatasetSaver loaded for {self.dataset_path}")
 
         if not os.path.exists(self.csv_filename):
             os.makedirs(os.path.dirname(self.csv_filename), exist_ok=True)
             with open(self.csv_filename, "w", newline="") as f:
-                csv.writer(f).writerow(["rgb_path","mask_path","timestamp","throttle","steer","brake","speed"])
+                csv.writer(f).writerow(["rgb_path","mask_path","semseg_path","custom_path","timestamp","throttle","steer","brake","speed"])
 
 
 
-    def save_sample (self, timestamp, bgr, mask_rgb, throttle, steer, brake, speed):
+    def save_sample (self, timestamp, bgr, mask_rgb, semseg_img, custom_img, throttle, steer, brake, speed):
         
         rgb_filename  = f"rgb_{self.counter:08d}.png"
         mask_filename = f"mask_{self.counter:08d}.png"
+        semseg_filename = f"semseg_{self.counter:08d}.png"
+        custom_filename = f"custom_{self.counter:08d}.png"
         
         self.counter = self.counter + 1
 
         rgb_str = ""
         mask_str = ""
+        semseg_str = ""
+        custom_str = ""
 
-        # save rgb only if image is provided
+        # saves only if is provided
         if bgr is not None:
             cv2.imwrite(os.path.join(self.rgb_path,  rgb_filename),  bgr)
             rgb_str = f"/{self.rgb_foldername}/{rgb_filename}"
 
-        # save mask only if image is provided
         if mask_rgb is not None:
             cv2.imwrite(os.path.join(self.mask_path, mask_filename), cv2.cvtColor(mask_rgb, cv2.COLOR_RGB2BGR))
             mask_str = f"/{self.mask_foldername}/{mask_filename}"
 
+        if semseg_img is not None:
+            cv2.imwrite(os.path.join(self.semseg_path, semseg_filename), semseg_img)
+            semseg_str = f"/{self.semseg_foldername}/{semseg_filename}"
+
+        if custom_img is not None:
+            cv2.imwrite(os.path.join(self.custom_path, custom_filename), custom_img)
+            custom_str = f"/{self.custom_foldername}/{custom_filename}"
+
         # write entry to csv
         with open(self.csv_filename, "a", newline="") as f:
-            csv.writer(f).writerow([rgb_str, mask_str, timestamp,
+            csv.writer(f).writerow([rgb_str, mask_str, semseg_str, custom_str, timestamp,
                                     throttle, steer, brake, speed])        
      
 

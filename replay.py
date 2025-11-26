@@ -38,6 +38,17 @@ from dataset_manager import DatasetSaver
 
 RATE_CONTROL_LOOP = 30
 
+CUSTOM_MAPPING = {
+    0: [11],
+    1: [14],
+    2: [34],
+    3: [0, 30],
+    4: [33],
+    5: [31],
+    6: [25, 29]
+}
+MAX_CUSTOM_LABELS = 7
+
 # SPEED_CSV = "./speedTown4.csv"
 
 # # Dataset paths
@@ -66,6 +77,25 @@ RATE_CONTROL_LOOP = 30
 #         csv.writer(f).writerow([f"/rgb/{rgb_name}", f"/masks/{mask_name}", timestamp,
 #                                 throttle, steer, brake, speed])
 
+def convert_to_equidistant_gray(image_array, num_classes):
+    # handle edge case for single class or empty
+    if num_classes < 2: 
+        return np.zeros_like(image_array, dtype=np.uint8)
+    
+    # scale ids to cover full 0-255 range
+    factor = 255.0 / (num_classes - 1)
+    return (image_array * factor).astype(np.uint8)
+
+def apply_custom_mapping(raw_semseg):
+
+    output = np.zeros_like(raw_semseg, dtype=np.uint8)
+    
+    # map carla ids to custom labels using boolean masks
+    for new_label, old_labels_list in CUSTOM_MAPPING.items():
+        mask = np.isin(raw_semseg, old_labels_list)
+        output[mask] = new_label
+        
+    return output
 
 def get_log_duration(client, log_file):
     import re           
@@ -125,6 +155,7 @@ def replay_loop(args, view="car"):
     vehicle = actors[0]  # first vehicle is ego
     print(f"Using ego con id={vehicle.id}, type={vehicle.type_id}")
     
+    # spawn rgb camera
     camera_bp = blueprint_library.find("sensor.camera.rgb")
     camera_bp.set_attribute("image_size_x", str(display_width))
     camera_bp.set_attribute("image_size_y", str(display_height))
@@ -133,7 +164,16 @@ def replay_loop(args, view="car"):
     camera_transform = carla.Transform(carla.Location(x=0.8, z=1.7))
     camera = world.spawn_actor(camera_bp, camera_transform, attach_to=vehicle)
 
+    # spawn semantic segmentation camera
+    sem_bp = blueprint_library.find("sensor.camera.semantic_segmentation")
+    sem_bp.set_attribute("image_size_x", str(display_width))
+    sem_bp.set_attribute("image_size_y", str(display_height))
+    sem_bp.set_attribute("fov", "90")
+
+    sem_camera = world.spawn_actor(sem_bp, camera_transform, attach_to=vehicle)
+
     frame_q = Queue(maxsize=1)   # save (rgb, bgr, (w, h))
+    sem_queue = Queue(maxsize=1)
 
     def _safe_put(q: Queue, item):
         try:
@@ -153,6 +193,7 @@ def replay_loop(args, view="car"):
         _safe_put(frame_q, (rgb, bgr, (image.width, image.height)))
 
     camera.listen(lambda img: process_image(img))
+    sem_camera.listen(lambda img: _safe_put(sem_queue, img))
 
     clock = pygame.time.Clock()
 
@@ -180,6 +221,15 @@ def replay_loop(args, view="car"):
                         raise KeyboardInterrupt
                 continue
 
+            raw_semseg_img = None
+            try:
+                sem_data = sem_queue.get_nowait()
+                sem_arr = np.frombuffer(sem_data.raw_data, dtype=np.uint8)
+                sem_arr = np.reshape(sem_arr, (sem_data.height, sem_data.width, 4))
+                raw_semseg_img = sem_arr[:, :, 2] 
+            except queue.Empty:
+                pass
+
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     raise KeyboardInterrupt
@@ -203,8 +253,21 @@ def replay_loop(args, view="car"):
                 save_all = "all" in types
                 do_mask = save_all or "mask" in types
                 do_rgb = save_all or "rgb" in types
+                do_semseg = save_all or "semseg" in types
+                do_custom = save_all or "custom_semseg" in types
 
                 mask_rgb = None
+                out_semseg = None
+                out_custom = None
+
+                # compute semseg or custom_semseg if enabled
+                if raw_semseg_img is not None:
+                    if do_semseg:
+                        out_semseg = convert_to_equidistant_gray(raw_semseg_img, num_classes=29)
+
+                    if do_custom:
+                        mapped = apply_custom_mapping(raw_semseg_img)
+                        out_custom = convert_to_equidistant_gray(mapped, num_classes=MAX_CUSTOM_LABELS)
 
                 # compute masks if enabled
                 if do_mask:
@@ -230,7 +293,7 @@ def replay_loop(args, view="car"):
                 mask_out = mask_rgb if do_mask else None
 
                 # save sample to dataset
-                dataset.save_sample(rel_time, image_out, mask_out, throttle, steer, brake, speed)
+                dataset.save_sample(rel_time, image_out, mask_out, out_semseg, out_custom, throttle, steer, brake, speed)
 
 
     except KeyboardInterrupt:
@@ -241,6 +304,10 @@ def replay_loop(args, view="car"):
         if camera is not None:
             camera.stop()
             camera.destroy()
+
+        if sem_camera is not None:
+            sem_camera.stop()
+            sem_camera.destroy()
 
         vehicle.destroy()
         
@@ -282,7 +349,7 @@ if __name__ == "__main__":
     parser.add_argument(
                         "--dataset_types", "--carla-dataset-types",
                         nargs="+",
-                        choices=["rgb", "mask", "segmented", "all"],
+                        choices=["rgb", "mask", "semseg", "custom_semseg", "all"],
                         default=["all"],
                         metavar="TYPE",
                         help=(
