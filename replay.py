@@ -223,7 +223,7 @@ def replay_loop(args, view="car"):
 
             raw_semseg_img = None
             try:
-                sem_data = sem_queue.get_nowait()
+                sem_data = sem_queue.get(timeout=0.2)
                 sem_arr = np.frombuffer(sem_data.raw_data, dtype=np.uint8)
                 sem_arr = np.reshape(sem_arr, (sem_data.height, sem_data.width, 4))
                 raw_semseg_img = sem_arr[:, :, 2] 
