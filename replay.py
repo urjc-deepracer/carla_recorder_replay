@@ -38,34 +38,6 @@ from dataset_manager import DatasetSaver
 
 RATE_CONTROL_LOOP = 30
 
-# SPEED_CSV = "./speedTown4.csv"
-
-# # Dataset paths
-# current_time   = str(int(time.time() * 1000))
-# DATASET_ID = current_time + "_dataset"  
-# SAVE_DIR   = DATASET_ID
-# RGB_DIR    = os.path.join(SAVE_DIR, "rgb")
-# MASK_DIR   = os.path.join(SAVE_DIR, "masks")
-# CSV_PATH   = os.path.join(SAVE_DIR, "dataset.csv")
-
-# os.makedirs(RGB_DIR, exist_ok=True)
-# os.makedirs(MASK_DIR, exist_ok=True)
-# if not os.path.exists(CSV_PATH):
-#     os.makedirs(os.path.dirname(CSV_PATH), exist_ok=True)
-#     with open(CSV_PATH, "w", newline="") as f:
-#         csv.writer(f).writerow(["rgb_path","mask_path","timestamp","throttle","steer","brake","speed"])
-
-
-
-# def save_data(timestamp, bgr, mask_rgb, throttle, steer, brake, speed):
-#     rgb_name  = f"{timestamp}_rgb_{DATASET_ID}.png"
-#     mask_name = f"{timestamp}_mask_{DATASET_ID}.png"
-#     cv2.imwrite(os.path.join(RGB_DIR,  rgb_name),  bgr)
-#     cv2.imwrite(os.path.join(MASK_DIR, mask_name), cv2.cvtColor(mask_rgb, cv2.COLOR_RGB2BGR))
-#     with open(CSV_PATH, "a", newline="") as f:
-#         csv.writer(f).writerow([f"/rgb/{rgb_name}", f"/masks/{mask_name}", timestamp,
-#                                 throttle, steer, brake, speed])
-
 
 def get_log_duration(client, log_file):
     import re           
